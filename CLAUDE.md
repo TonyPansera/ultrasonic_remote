@@ -41,15 +41,26 @@ EOF
 
 ## USB connection (WSL2 + usbipd-win)
 
-The board reaches WSL through usbipd-win (BUSID `6-1`, VID:PID `1a86:55d4`, CH9102 bridge, appears as `/dev/ttyACM0` via `cdc_acm`). Before uploading, check `ls /dev/ttyACM0`. If it is missing, (re)attach it from WSL, running in the background:
+The board reaches WSL through usbipd-win (BUSID `3-2` on the current USB port, `6-1` on the other one, VID:PID `1a86:55d4`, CH9102 bridge, appears as `/dev/ttyACM0` via `cdc_acm`). Before uploading, check `ls /dev/ttyACM0`. If it is missing, (re)attach it from WSL, running in the background:
 
 ```bash
-"/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid 6-1 --auto-attach
+"/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid 3-2 --auto-attach
 ```
 
 The device is already bound (persisted), so `bind` (admin) is not needed again. If the BUSID changed (different USB port), find it with `usbipd.exe list`. Port permissions come from PlatformIO's udev rules (`/etc/udev/rules.d/99-platformio-udev.rules`, mode 0666) and from `dialout` membership.
 
 `sudo` needs a password, so ask the user to run sudo commands themselves with `! <command>`. A pre-existing half-configured `openssh-server` package makes every `apt-get` call exit 1 even when the install worked, so never chain anything after `apt-get` with `&&`.
+
+## ultrasonic_probe (GPIO32 signal analysis)
+
+- The firmware speaks a line protocol at 921600 baud (`info`, `rate`, `cap`, `pull`, `src`, `disp`); see `ultrasonic_probe/README.md`. `tools/analyze_signal.py` is the host side: `cd ultrasonic_probe && uv run tools/analyze_signal.py` takes about 3 min and regenerates `results/` (figures, `REPORT.md`, `summary.json`, `data/*.npz`).
+- **Opening `/dev/ttyACM0` resets the board** (cdc_acm toggles DTR/RTS even with `dtr=False`). Host code must wait for the `READY` line before sending commands, or the first command is lost during boot.
+- ESP32 I2S built-in-ADC quirks, all verified on this board:
+  - each 16-bit sample pair comes out swapped (un-swap with `i ^ 1`);
+  - the true conversion rate is fixed at ~249 kS/s, and a higher I2S rate only repeats each conversion (x2/x4/x8);
+  - `i2s_set_adc_mode()`/`i2s_adc_enable()` re-init the pad and clear RTC pulls, so re-apply pulls after them.
+- The legacy PCNT driver enables a pull-up on its input pin, which precharges a floating node. Measure with `analogRead()` before configuring PCNT.
+- A ~0.3 mV line wandering around 41 kHz (plus an 83 kHz harmonic) appears even on an unconnected ADC pin, with the display asleep. It is supply/ground interference: never report a tone that weak as a signal.
 
 ## Display configuration (non-obvious)
 

@@ -1,6 +1,11 @@
 # ESP32 LilyGO T-Display: development from WSL2
 
-This folder holds ESP32 projects for the **LilyGO T-Display v1.1**. They are built and flashed from WSL2 (Ubuntu) with **PlatformIO**. Each subfolder is an independent project. `tdisplay_test/` is a hardware test, and also a template for new projects.
+This folder holds ESP32 projects for the **LilyGO T-Display v1.1**. They are built and flashed from WSL2 (Ubuntu) with **PlatformIO**. Each subfolder is an independent project.
+
+| Project | What it does |
+|---|---|
+| [`tdisplay_test/`](tdisplay_test) | Hardware test (screen, buttons, chip info) and template for new projects |
+| [`ultrasonic_probe/`](ultrasonic_probe) | Samples GPIO32 at ~249 kS/s and checks for a 40 kHz ultrasonic signal; host script makes graphs and a report ([latest report](ultrasonic_probe/results/REPORT.md)) |
 
 Windows path to this folder (for VS Code or Explorer): `\\wsl.localhost\Ubuntu-26.04\home\tonyp\esp32`
 
@@ -45,7 +50,7 @@ You only need this section to rebuild the setup on another PC.
    ```
 2. **Share the board once** (needs admin, so a UAC prompt appears). Find the BUSID first with `usbipd.exe list`.
    ```bash
-   powershell.exe -Command "Start-Process -FilePath 'C:\Program Files\usbipd-win\usbipd.exe' -ArgumentList 'bind','--busid','6-1' -Verb RunAs -Wait"
+   powershell.exe -Command "Start-Process -FilePath 'C:\Program Files\usbipd-win\usbipd.exe' -ArgumentList 'bind','--busid','3-2' -Verb RunAs -Wait"
    ```
 3. **Serial port permissions** (WSL):
    ```bash
@@ -70,18 +75,18 @@ Installed versions: PlatformIO 6.2, platform `espressif32` 7.1.3, **Arduino-ESP3
 USB devices are not shared with WSL automatically. After each Windows reboot or board replug, attach the board again:
 
 ```bash
-"/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid 6-1 --auto-attach
+"/mnt/c/Program Files/usbipd-win/usbipd.exe" attach --wsl --busid 3-2 --auto-attach
 ```
 
 - `--auto-attach` keeps the command running and re-attaches the board whenever it is unplugged and plugged back in. Leave that terminal open, or press Ctrl+C to stop.
 - No admin rights are needed for `attach`. The admin-only `bind` step was done once and is remembered.
-- If you plug into **another USB port**, the BUSID can change. Run `"/mnt/c/Program Files/usbipd-win/usbipd.exe" list` and look for `1a86:55d4 USB-Enhanced-SERIAL CH9102`.
+- The BUSID depends on the **physical USB port**: `3-2` on the current port, `6-1` on the other one. After switching ports, run `"/mnt/c/Program Files/usbipd-win/usbipd.exe" list` and look for `1a86:55d4 USB-Enhanced-SERIAL CH9102`. The share (`bind`) follows the device, so only `attach` needs the new BUSID. Stop any old `--auto-attach` loop first.
 
 Optional shortcut, to add to `~/.bashrc`:
 
 ```bash
 alias usbipd='"/mnt/c/Program Files/usbipd-win/usbipd.exe"'
-alias esp-attach='usbipd attach --wsl --busid 6-1 --auto-attach'
+alias esp-attach='usbipd attach --wsl --busid 3-2 --auto-attach'
 ```
 
 **Check that it is connected:**
@@ -94,7 +99,7 @@ ls -l /dev/ttyACM0       # crw-rw-rw- ... /dev/ttyACM0
 **Giving the board back to Windows** (for Arduino IDE on Windows, for example): while the board is attached to WSL, `COM3` does not exist on Windows. Detach it with:
 
 ```bash
-"/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid 6-1
+"/mnt/c/Program Files/usbipd-win/usbipd.exe" detach --busid 3-2
 ```
 
 ---
@@ -263,7 +268,7 @@ Flash it again any time to check that the board and toolchain still work.
 | Problem | Fix |
 |---|---|
 | `/dev/ttyACM0` does not exist | Board not attached to WSL: run the `usbipd attach` command (section 3). Check the cable: some USB-C cables are charge-only. |
-| `usbipd: error: There is no device with busid '6-1'` | Board on another USB port, or not plugged in. Run `usbipd.exe list` to get the new BUSID. If the device shows as "Not shared", repeat the `bind` step (admin). |
+| `usbipd: error: There is no device with busid '3-2'` | Board on another USB port, or not plugged in. Run `usbipd.exe list` to get the new BUSID. If the device shows as "Not shared", repeat the `bind` step (admin). |
 | `Permission denied: '/dev/ttyACM0'` | udev rules missing (section 2, step 3). Check with `ls -l /dev/ttyACM0`, which should show `crw-rw-rw-`. |
 | `could not open port ... Device or resource busy` | A serial monitor is still open (here or on Windows). Close it. |
 | `Failed to connect to ESP32: Wrong boot mode detected` / `Timed out waiting for packet header` | Enter download mode by hand: **hold the left button (GPIO0/BOOT), press and release RST, release GPIO0**, then upload again. |
@@ -273,5 +278,5 @@ Flash it again any time to check that the board and toolchain still work.
 | Text in a font does not appear | That font's `-DLOAD_FONTx=1` flag is missing from `build_flags`. |
 | Garbage characters in the serial monitor | Baud mismatch: `monitor_speed` must equal the `Serial.begin()` value. |
 | Board crashes in a loop (`Guru Meditation Error`) | Read the error in the monitor. Common causes: an array index out of range, a null pointer, or a stack overflow from big local arrays (make them `static` or global). |
-| `COM3` missing on Windows | The board is attached to WSL. Use `usbipd detach --busid 6-1` (section 3). |
+| `COM3` missing on Windows | The board is attached to WSL. Use `usbipd detach --busid 3-2` (section 3). |
 | `apt-get` ends with an `openssh-server` error | Pre-existing broken package, unrelated to the ESP32. The rest of the install still succeeded. |
